@@ -3,31 +3,44 @@ class Node:
         self.keys = []
         self.children = []
         self.leaf = leaf
+        self.values = []
 
 
 class BTree:
     def __init__(self, t):
         self.root = Node(True)
         self.t = t
-        # self.ui=ui
+        self.comp = 0
 
     def search(self, key, node=None):
         node = self.root if node is None else node
-    
-        i = 0
-        while i < len(node.keys) and key > node.keys[i]:
-            i += 1
 
-        print(f"Num of nodes: {i}")
+        low = 0
+        high = len(node.keys) - 1
 
-        if i < len(node.keys) and key == node.keys[i]:
-            return node, i
-        elif node.leaf:
-            return None
-        else:
-            return self.search(key, node.children[i])
+        while low <= high:
+            mid = (low + high) // 2
+            guess = node.keys[mid][0]
+            self.comp += 1
+            if guess == key:
+                return node, mid
+            elif guess > key:
+                high = mid - 1
+            else:
+                low = mid + 1
 
-    def split_child(self, x, i):
+        if not node.leaf:
+            return self.search(key, node.children[low])
+
+        return None
+
+    @property
+    def getNumOfComparisons(self):
+        temp = self.comp
+        self.comp=0
+        return temp
+
+    def devideChild(self, x, i):
         t = self.t
 
         # y is a full child of x
@@ -49,79 +62,75 @@ class BTree:
             z.children = y.children[t: 2 * t]
             y.children = y.children[0: t] # video incorrectly has t-1
 
-    def insert(self, k):
+    def insert(self, k, v):  # Modify to accept a value v
         t = self.t
         root = self.root
 
-        # if root is full, create a new node - tree's height grows by 1
         if len(root.keys) == (2 * t) - 1:
             new_root = Node()
             self.root = new_root
             new_root.children.insert(0, root)
-            self.split_child(new_root, 0)
-            self.insert_non_full(new_root, k)
+            self.devideChild(new_root, 0)
+            self.insertInNotFull(new_root, k, v)  # Pass the value to the insert_non_full function
         else:
-            self.insert_non_full(root, k)
+            self.insertInNotFull(root, k, v)  # Pass the value to the insert_non_full function
 
-    def insert_non_full(self, x, k):
+    def insertInNotFull(self, x, k, v):  # Modify to accept a value v
         t = self.t
         i = len(x.keys) - 1
 
-        # find the correct spot in the leaf to insert the key
         if x.leaf:
-            x.keys.append(None)
-            while i >= 0 and k < x.keys[i]:
+            x.keys.append((None, None))  # Add a placeholder for the new key-value pair
+            while i >= 0 and k < x.keys[i][0]:  # Compare the keys
                 x.keys[i + 1] = x.keys[i]
                 i -= 1
-            x.keys[i + 1] = k
-        # if not a leaf, find the correct subtree to insert the key
+            x.keys[i + 1] = (k, v)  # Insert the key-value pair at the correct position
         else:
-            while i >= 0 and k < x.keys[i]:
+            while i >= 0 and k < x.keys[i][0]:  # Compare the keys
                 i -= 1
             i += 1
-            # if child node is full, split it
             if len(x.children[i].keys) == (2 * t) - 1:
-                self.split_child(x, i)
-                if k > x.keys[i]:
+                self.devideChild(x, i)
+                if k > x.keys[i][0]:  # Compare the keys
                     i += 1
-            self.insert_non_full(x.children[i], k)
+            self.insertInNotFull(x.children[i], k, v)
 
     def delete(self, x, k):
         t = self.t
         i = 0
 
-        while i < len(x.keys) and k > x.keys[i]:
+        while i < len(x.keys) and k > x.keys[i][0]:
             i += 1
         if x.leaf:
-            if i < len(x.keys) and x.keys[i] == k:
+            if i < len(x.keys) and x.keys[i][0] == k:
                 x.keys.pop(i)
             return
 
-        if i < len(x.keys) and x.keys[i] == k:
-            return self.delete_internal_node(x, k, i)
+        if i < len(x.keys) and x.keys[i][0] == k:
+            return self.deleteInnerNode(x, k, i)
         elif len(x.children[i].keys) >= t:
             self.delete(x.children[i], k)
         else:
             if i != 0 and i + 2 < len(x.children):
                 if len(x.children[i - 1].keys) >= t:
-                    self.delete_sibling(x, i, i - 1)
+                    self.deleteSibling(x, i, i - 1)
                 elif len(x.children[i + 1].keys) >= t:
-                    self.delete_sibling(x, i, i + 1)
+                    self.deleteSibling(x, i, i + 1)
                 else:
-                    self.delete_merge(x, i, i + 1)
+                    self.deleteMerge(x, i, i + 1)
             elif i == 0:
                 if len(x.children[i + 1].keys) >= t:
-                    self.delete_sibling(x, i, i + 1)
+                    self.deleteSibling(x, i, i + 1)
                 else:
-                    self.delete_merge(x, i, i + 1)
+                    self.deleteMerge(x, i, i + 1)
             elif i + 1 == len(x.children):
                 if len(x.children[i - 1].keys) >= t:
-                    self.delete_sibling(x, i, i - 1)
+                    self.deleteSibling(x, i, i - 1)
                 else:
-                    self.delete_merge(x, i, i - 1)
+                    self.deleteMerge(x, i, i - 1)
             self.delete(x.children[i], k)
 
-    def delete_internal_node(self, x, k, i):
+    def deleteInnerNode(self, x, k, i):
         t = self.t
         if x.leaf:
             if x.keys[i] == k:
@@ -129,35 +138,35 @@ class BTree:
             return
 
         if len(x.children[i].keys) >= t:
-            x.keys[i] = self.delete_predecessor(x.children[i])
+            x.keys[i] = self.deletePredecessor(x.children[i])
             return
         elif len(x.children[i + 1].keys) >= t:
-            x.keys[i] = self.delete_successor(x.children[i + 1])
+            x.keys[i] = self.deleteSuccessor(x.children[i + 1])
             return
         else:
-            self.delete_merge(x, i, i + 1)
-            self.delete_internal_node(x.children[i], k, self.t - 1)
+            self.deleteMerge(x, i, i + 1)
+            self.deleteInnerNode(x.children[i], k, self.t - 1)
 
-    def delete_predecessor(self, x):
+    def deletePredecessor(self, x):
         if x.leaf:
             return x.keys.pop()
         n = len(x.keys) - 1
         if len(x.children[n].keys) >= self.t:
-            self.delete_sibling(x, n + 1, n)
+            self.deleteSibling(x, n + 1, n)
         else:
-            self.delete_merge(x, n, n + 1)
-        self.delete_predecessor(x.children[n])
+            self.deleteMerge(x, n, n + 1)
+        self.deletePredecessor(x.children[n])
 
-    def delete_successor(self, x):
+    def deleteSuccessor(self, x):
         if x.leaf:
             return x.keys.pop(0)
         if len(x.children[1].keys) >= self.t:
-            self.delete_sibling(x, 0, 1)
+            self.deleteSibling(x, 0, 1)
         else:
-            self.delete_merge(x, 0, 1)
-        self.delete_successor(x.children[0])
+            self.deleteMerge(x, 0, 1)
+        self.deleteSuccessor(x.children[0])
 
-    def delete_merge(self, x, i, j):
+    def deleteMerge(self, x, i, j):
         cnode = x.children[i]
 
         if j > i:
@@ -189,7 +198,7 @@ class BTree:
             self.root = new
 
     @staticmethod
-    def delete_sibling(x, i, j):
+    def deleteSibling(x, i, j):
         cnode = x.children[i]
         if i < j:
             rsnode = x.children[j]
@@ -205,6 +214,14 @@ class BTree:
             x.keys[i - 1] = lsnode.keys.pop()
             if len(lsnode.children) > 0:
                 cnode.children.insert(0, lsnode.children.pop())
+
+    def update(self, key, new_value):
+        node, index = self.search(key)
+        if node is None:
+            return False
+        else:
+            node.keys[index] = (key, new_value)
+            return True
 
     def print_tree(self, x, level=0):
         print(f'Level {level}', end=": ")
@@ -226,96 +243,4 @@ class BTree:
             for child in node.child:
                 self.print_btree(child, l)
 
-
-def delete_example():
-    first_leaf = Node(True)
-    first_leaf.keys = [1, 9]
-
-    second_leaf = Node(True)
-    second_leaf.keys = [17, 19, 21]
-
-    third_leaf = Node(True)
-    third_leaf.keys = [23, 25, 27]
-
-    fourth_leaf = Node(True)
-    fourth_leaf.keys = [31, 32, 39]
-
-    fifth_leaf = Node(True)
-    fifth_leaf.keys = [41, 47, 50]
-
-    sixth_leaf = Node(True)
-    sixth_leaf.keys = [56, 60]
-
-    seventh_leaf = Node(True)
-    seventh_leaf.keys = [72, 90]
-
-    root_left_child = Node()
-    root_left_child.keys = [15, 22, 30]
-    root_left_child.children.append(first_leaf)
-    root_left_child.children.append(second_leaf)
-    root_left_child.children.append(third_leaf)
-    root_left_child.children.append(fourth_leaf)
-
-    root_right_child = Node()
-    root_right_child.keys = [55, 63]
-    root_right_child.children.append(fifth_leaf)
-    root_right_child.children.append(sixth_leaf)
-    root_right_child.children.append(seventh_leaf)
-
-    root = Node()
-    root.keys = [40]
-    root.children.append(root_left_child)
-    root.children.append(root_right_child)
-
-    B = BTree(3)
-    B.root = root
-    print('\n--- Original B-Tree ---\n')
-    B.print_tree(B.root)
-
-    print('\n--- Case 1: DELETED 21 ---\n')
-    B.delete(B.root, 21)
-    B.print_tree(B.root)
-
-    print('\n--- Case 2a: DELETED 30 ---\n')
-    B.delete(B.root, 30)
-    B.print_tree(B.root)
-
-    print('\n--- Case 2b: DELETED 27 ---\n')
-    B.delete(B.root, 27)
-    B.print_tree(B.root)
-
-    print('\n--- Case 2c: DELETED 22 ---\n')
-    B.delete(B.root, 22)
-    B.print_tree(B.root)
-
-    print('\n--- Case 3b: DELETED 17 ---\n')
-    B.delete(B.root, 17)
-    B.print_tree(B.root)
-
-    print('\n--- Case 3a: DELETED 9 ---\n')
-    B.delete(B.root, 9)
-    B.print_tree(B.root)
-
-
-def insert_and_search_example():
-    B = BTree(3)
-
-    for i in range(10):
-        B.insert(i)
-
-    B.print_tree(B.root)
-    print()
-
-    keys_to_search_for = [2, 9, 11, 4]
-    for key in keys_to_search_for:
-        if B.search(key) is not None:
-            print(f'{key} is in the tree')
-        else:
-            print(f'{key} is NOT in the tree')
-
-
-def run():
-    print('\n--- INSERT & SEARCH ---\n')
-    insert_and_search_example()
-    delete_example()
 

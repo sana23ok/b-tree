@@ -1,13 +1,16 @@
 import numpy as np
+import random
+import string
 
 
 def generateDB(n, filename, start, end):
-    # Generate a random array of integers
     random_array = np.random.randint(start, end, n)
 
-    # Write the array to a file
-    with open(filename, 'w') as f:
-        for item in random_array:
-            f.write(str(item)+"\n")
+    random_strings = [''.join(random.choices(string.ascii_uppercase + string.digits, k=10)) for _ in range(n)]
 
-        f.close()
+    # Write the arrays to a file
+    with open(filename, 'w') as f:
+        for num, str_ in zip(random_array, random_strings):
+            f.write(str(num) + " " + str_ + "\n")
+
+    f.close()
